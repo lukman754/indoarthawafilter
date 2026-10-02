@@ -1,0 +1,1167 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Produk Filter 3D</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: transparent;
+      }
+      canvas {
+        display: block;
+        touch-action: none;
+        cursor: grab;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      const R = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      R.setPixelRatio(Math.min(devicePixelRatio, 2));
+      R.setSize(innerWidth, innerHeight);
+      R.setClearColor(0x000000, 0);
+      R.outputEncoding = THREE.sRGBEncoding;
+      R.toneMapping = THREE.ACESFilmicToneMapping;
+      R.toneMappingExposure = 0.85;
+      document.body.appendChild(R.domElement);
+      const S = new THREE.Scene(),
+        C = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 200),
+        P = [];
+      // environment (untuk pantulan stainless & plastik)
+      (() => {
+        const c = document.createElement("canvas");
+        c.width = 512;
+        c.height = 256;
+        const g = c.getContext("2d"),
+          gr = g.createLinearGradient(0, 0, 0, 256);
+        gr.addColorStop(0, "#c9d3df");
+        gr.addColorStop(0.5, "#4f5f72");
+        gr.addColorStop(1, "#6a7683");
+        g.fillStyle = gr;
+        g.fillRect(0, 0, 512, 256);
+        g.fillStyle = "#fff";
+        [
+          [40, 40, 60, 90],
+          [200, 30, 50, 100],
+          [330, 50, 70, 80],
+          [450, 40, 40, 90],
+        ].forEach((a) => g.fillRect(...a));
+        g.fillStyle = "#4b5d73";
+        g.fillRect(120, 120, 40, 60);
+        g.fillRect(380, 130, 50, 50);
+        const t = new THREE.CanvasTexture(c);
+        t.mapping = THREE.EquirectangularReflectionMapping;
+        t.encoding = THREE.sRGBEncoding;
+        S.environment = new THREE.PMREMGenerator(R).fromEquirectangular(
+          t,
+        ).texture;
+      })();
+      const dl = new THREE.DirectionalLight(0xffffff, 0.55);
+      dl.position.set(6, 10, 8);
+      S.add(dl);
+
+      const Y = (r, h, s = 32) => new THREE.CylinderGeometry(r, r, h, s),
+        Mt = (c, m = 0, r = 0.5) =>
+          new THREE.MeshStandardMaterial({
+            color: c,
+            metalness: m,
+            roughness: r,
+          });
+      const BL = 0x0a52e8,
+        BK = 0x0b0d10,
+        GY = 0xc9ced6,
+        PI = Math.PI;
+      function tex(kind, rx, ry) {
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const g = c.getContext("2d");
+        const p = {
+          grid: ["#a8987f", "#f6f1e8", 3, 16],
+          net: ["#ffffff", "#8e99a6", 3.5, 16],
+          dnet: ["#dfe4e9", "#000", 5, 18],
+          wound: ["#f6f7f7", "#bcc3ca", 1.5, 6],
+        }[kind];
+        g.fillStyle = p[0];
+        g.fillRect(0, 0, 128, 128);
+        g.strokeStyle = p[1];
+        g.lineWidth = p[2];
+        if (kind == "grid") {
+          for (let i = 0; i <= 128; i += p[3]) {
+            g.beginPath();
+            g.moveTo(i, 0);
+            g.lineTo(i, 128);
+            g.moveTo(0, i);
+            g.lineTo(128, i);
+            g.stroke();
+          }
+        } else
+          for (let i = -128; i <= 256; i += p[3]) {
+            g.beginPath();
+            g.moveTo(i, 0);
+            g.lineTo(i + 128, 128);
+            if (kind != "wound") {
+              g.moveTo(i + 128, 0);
+              g.lineTo(i, 128);
+            }
+            g.stroke();
+          }
+        const t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(rx, ry);
+        t.encoding = THREE.sRGBEncoding;
+        t.anisotropy = 8;
+        return t;
+      }
+      const bt = (() => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 64;
+        const g = c.getContext("2d"),
+          r = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+        r.addColorStop(0, "rgba(0,0,0,.32)");
+        r.addColorStop(1, "rgba(0,0,0,0)");
+        g.fillStyle = r;
+        g.fillRect(0, 0, 64, 64);
+        return new THREE.CanvasTexture(c);
+      })();
+      function blob(x, z, w, d, ry) {
+        const m = new THREE.Mesh(
+          new THREE.PlaneGeometry(w, d),
+          new THREE.MeshBasicMaterial({
+            map: bt,
+            transparent: true,
+            depthWrite: false,
+          }),
+        );
+        m.rotation.order = "YXZ";
+        m.rotation.x = -PI / 2;
+        m.rotation.y = ry || 0;
+        m.position.set(x, 0.01, z);
+        CG.add(m);
+        m.raycast = () => {};
+      }
+
+      let CG;
+      const cols = [],
+        PR = new THREE.Plane(new THREE.Vector3(0, -1, 0), 99),
+        PW = new THREE.Plane(new THREE.Vector3(0, 1, 0), -99),
+        WM = new THREE.LineBasicMaterial({
+          color: 0x8fdcff,
+          transparent: true,
+          opacity: 0,
+          clippingPlanes: [PW],
+        });
+      R.localClippingEnabled = true;
+      function col(name, t0, rt, fn) {
+        CG = new THREE.Group();
+        fn();
+        cols.push({ name, t0: new THREE.Vector3(...t0), rt, g: CG });
+      }
+      col("Filter Air", [0, 1.7, -0.2], 14, () => {
+        // cartridge berdiri
+        function stand(x, z, r, h, cfg) {
+          const g = new THREE.Group(),
+            geo = Y(r, h, cfg.pleat ? 180 : 48);
+          if (cfg.pleat) {
+            const p = geo.attributes.position;
+            for (let i = 0; i < p.count; i++) {
+              const px = p.getX(i),
+                pz = p.getZ(i);
+              if (Math.hypot(px, pz) > 0.01) {
+                const k = 1 + 0.05 * Math.cos(Math.atan2(pz, px) * 45);
+                p.setX(i, px * k);
+                p.setZ(i, pz * k);
+              }
+            }
+            geo.computeVertexNormals();
+          }
+          const m = cfg.tex
+            ? new THREE.MeshStandardMaterial({
+                map: tex(cfg.tex, 4, Math.round(h * 3.2)),
+                roughness: 0.85,
+              })
+            : Mt(cfg.col, 0, 0.75);
+          const b = new THREE.Mesh(geo, m);
+          b.position.y = h / 2;
+          g.add(b);
+          const bo = new THREE.Mesh(Y(r * 1.03, 0.14, 48), Mt(cfg.bot, 0, 0.5));
+          bo.position.y = 0.07;
+          g.add(bo);
+          let y = h;
+          cfg.top.forEach(([f, t, c, mt]) => {
+            const o = new THREE.Mesh(
+              Y(r * f, t, 48),
+              Mt(c, mt || 0, mt ? 0.25 : 0.4),
+            );
+            o.position.y = y + t / 2;
+            y += t;
+            g.add(o);
+          });
+          g.position.set(x, 0, z);
+          g.rotation.y = cfg.ry || 0;
+          CG.add(g);
+          blob(x, z, r * 3.6, r * 3.6);
+        }
+
+        stand(-2.9, -1.3, 0.5, 2.6, {
+          ry: 0.5,
+          tex: "grid",
+          bot: 0x8d8576,
+          top: [
+            [1.12, 0.28, BL],
+            [0.5, 0.22, BL],
+            [0.64, 0.1, BL],
+          ],
+        });
+        stand(-1.5, -0.3, 0.62, 3.3, {
+          pleat: 1,
+          col: 0xffffff,
+          bot: BK,
+          top: [
+            [1.03, 0.2, BK],
+            [0.55, 0.34, BL],
+            [0.65, 0.08, BL],
+          ],
+        });
+        stand(0, -1.2, 0.72, 4.3, {
+          ry: 1.9,
+          tex: "net",
+          bot: 0xeeeeee,
+          top: [
+            [1.03, 0.28, 0xffffff],
+            [0.38, 0.22, 0xffffff],
+          ],
+        });
+        stand(1.5, -0.5, 0.66, 3.5, {
+          ry: 0.8,
+          tex: "net",
+          bot: 0xeeeeee,
+          top: [
+            [1.12, 0.34, BL],
+            [0.45, 0.22, GY, 0.8],
+          ],
+        });
+        stand(2.9, -1.4, 0.6, 2.9, {
+          ry: 2.6,
+          tex: "dnet",
+          bot: BK,
+          top: [
+            [1.12, 0.3, BL],
+            [0.5, 0.2, BL],
+            [0.64, 0.1, BL],
+          ],
+        });
+        stand(0.8, 0.6, 0.55, 2.4, {
+          pleat: 1,
+          col: 0xffffff,
+          bot: BK,
+          top: [
+            [1.03, 0.22, BK],
+            [0.42, 0.24, GY, 0.8],
+          ],
+        });
+
+        // housing stainless dengan clamp
+        (function (x, z, ry) {
+          const g = new THREE.Group(),
+            s = Mt(0xe3e9f0, 1, 0.14);
+          const mk = (geo, px, py, pz, rot) => {
+            const o = new THREE.Mesh(geo, s);
+            o.position.set(px, py, pz);
+            if (rot) o.rotation.set(...rot);
+            g.add(o);
+            return o;
+          };
+          mk(Y(0.62, 3, 64), 0, 1.6, 0);
+          mk(Y(0.66, 0.12, 64), 0, 0.06, 0);
+          mk(new THREE.TorusGeometry(0.64, 0.05, 12, 64), 0, 3.1, 0, [
+            PI / 2,
+            0,
+            0,
+          ]);
+          mk(Y(0.7, 0.18, 64), 0, 3.2, 0);
+          mk(
+            new THREE.SphereGeometry(0.62, 48, 16, 0, PI * 2, 0, PI / 2),
+            0,
+            3.28,
+            0,
+          );
+          mk(Y(0.2, 0.3, 24), 0, 4, 0);
+          mk(Y(0.27, 0.1, 24), 0, 4.18, 0);
+          mk(new THREE.TorusGeometry(0.24, 0.04, 10, 24), 0, 4.1, 0, [
+            PI / 2,
+            0,
+            0,
+          ]);
+          for (let k = 0; k < 6; k++) {
+            const a = (k * PI) / 3;
+            mk(Y(0.035, 0.5, 10), Math.cos(a) * 0.74, 3.35, Math.sin(a) * 0.74);
+            mk(
+              new THREE.TorusGeometry(0.1, 0.025, 8, 20),
+              Math.cos(a) * 0.74,
+              3.68,
+              Math.sin(a) * 0.74,
+              [0, -a, 0],
+            );
+          }
+          mk(Y(0.2, 0.6, 24), 0.8, 0.6, 0, [0, 0, PI / 2]);
+          mk(Y(0.27, 0.08, 24), 1.1, 0.6, 0, [0, 0, PI / 2]);
+          mk(Y(0.3, 0.06, 24), 1.16, 0.6, 0, [0, 0, PI / 2]);
+          mk(Y(0.2, 0.6, 24), -0.8, 2.4, 0, [0, 0, PI / 2]);
+          mk(Y(0.3, 0.06, 24), -1.16, 2.4, 0, [0, 0, PI / 2]);
+          mk(Y(0.2, 0.1, 32), 0, 3.55, 0.68, [PI / 2, 0, 0]);
+          mk(
+            new THREE.TorusGeometry(0.2, 0.03, 8, 32),
+            0,
+            3.55,
+            0.74,
+            [0, 0, 0],
+          );
+          {
+            const d = new THREE.Mesh(Y(0.17, 0.02, 32), Mt(0xf4f6f8, 0, 0.4));
+            d.position.set(0, 3.55, 0.74);
+            d.rotation.x = PI / 2;
+            g.add(d);
+          }
+          g.position.set(x, 0, z);
+          g.rotation.y = ry;
+          CG.add(g);
+          blob(x, z, 2.6, 2.6);
+        })(-0.1, -3.1, 0.6);
+
+        // membran RO (rebah)
+        (function (x, z, ry) {
+          const g = new THREE.Group(),
+            rt = [0, 0, PI / 2],
+            W = Mt(0xf4f6f8, 0, 0.45);
+          const mk = (geo, m, px) => {
+            const o = new THREE.Mesh(geo, m);
+            o.position.x = px;
+            o.rotation.set(...rt);
+            g.add(o);
+          };
+          mk(
+            Y(0.42, 2.4, 64),
+            new THREE.MeshStandardMaterial({
+              color: 0x0a57ea,
+              roughness: 0.3,
+              metalness: 0.1,
+            }),
+            0,
+          );
+          const c = document.createElement("canvas");
+          c.width = 256;
+          c.height = 128;
+          const cx = c.getContext("2d");
+          cx.fillStyle = "#f7f9fb";
+          cx.fillRect(0, 0, 256, 128);
+          cx.fillStyle = "#2a63b8";
+          cx.fillRect(0, 0, 256, 14);
+          cx.fillStyle = "#8a97a6";
+          for (let i = 0; i < 9; i++)
+            cx.fillRect(14, 26 + i * 10, 60 + ((i * 37) % 150), 4);
+          cx.fillStyle = "#2f9e5a";
+          cx.beginPath();
+          cx.arc(30, 112, 8, 0, 7);
+          cx.fill();
+          const lt = new THREE.CanvasTexture(c);
+          lt.encoding = THREE.sRGBEncoding;
+          lt.center.set(0.5, 0.5);
+          lt.rotation = PI / 2;
+          const lab = new THREE.Mesh(
+            new THREE.CylinderGeometry(
+              0.425,
+              0.425,
+              1.7,
+              48,
+              1,
+              true,
+              -0.9,
+              1.8,
+            ),
+            new THREE.MeshStandardMaterial({
+              map: lt,
+              roughness: 0.6,
+              side: THREE.DoubleSide,
+            }),
+          );
+          lab.position.x = 0.25;
+          lab.rotation.set(0, 0, PI / 2);
+          g.add(lab);
+          mk(Y(0.46, 0.3, 64), W, -1.35);
+          mk(Y(0.44, 0.2, 64), Mt(BK), -1.12);
+          mk(Y(0.44, 0.2, 64), Mt(BK), 1.15);
+          mk(Y(0.34, 0.2, 48), Mt(0x0840b0, 0, 0.4), 1.3);
+          mk(Y(0.38, 0.14, 48), Mt(BK), 1.42);
+          mk(Y(0.4, 0.04, 48), Mt(0xe9cf9f, 0, 0.8), -1.51);
+          mk(Y(0.14, 0.05, 32), W, -1.53);
+          mk(Y(0.11, 0.5, 24), Mt(0xe3c595, 0, 0.6), -1.78);
+          g.position.set(x, 0.46, z);
+          g.rotation.y = ry;
+          CG.add(g);
+          blob(x, z, 4.4, 1.9, ry);
+        })(-1.9, 1.9, 0.25);
+
+        // cartridge spun (rebah)
+        (function (x, z, ry) {
+          const g = new THREE.Group(),
+            rz = [0, 0, PI / 2];
+          const b = new THREE.Mesh(
+            Y(0.5, 2, 48),
+            new THREE.MeshStandardMaterial({
+              map: tex("wound", 3, 6),
+              roughness: 0.95,
+            }),
+          );
+          b.rotation.set(...rz);
+          g.add(b);
+          const h = new THREE.Mesh(Y(0.15, 2.02, 24), Mt(0xe6c699, 0, 0.8));
+          h.rotation.set(...rz);
+          g.add(h);
+          [
+            [0.5, 0.15, 0xf4efe6, 1.005],
+            [0.28, 0.15, 0xe8cfa6, 1.01],
+          ].forEach(([o, i, c, px]) => {
+            const f = new THREE.Mesh(
+              new THREE.RingGeometry(i, o, 48),
+              new THREE.MeshStandardMaterial({
+                color: c,
+                roughness: 0.9,
+                side: THREE.DoubleSide,
+              }),
+            );
+            f.rotation.y = PI / 2;
+            f.position.x = px;
+            g.add(f);
+          });
+          g.position.set(x, 0.5, z);
+          g.rotation.y = ry;
+          CG.add(g);
+          blob(x, z, 2.8, 1.6, ry);
+        })(2.4, 2.3, -0.5);
+      });
+      const WH = Mt(0xf3f5f7, 0, 0.9),
+        MET = Mt(0xcfd5dc, 0.85, 0.3),
+        DK = Mt(0x16191d, 0, 0.5),
+        GM = Mt(0x59616b, 0.8, 0.4),
+        FB = Mt(0xf1f3f5, 0, 1),
+        LN = new THREE.MeshStandardMaterial({
+          color: 0x59616b,
+          metalness: 0.6,
+          roughness: 0.5,
+          side: THREE.DoubleSide,
+        });
+      const mk = (g, geo, m, x, y, z, rot) => {
+        const o = new THREE.Mesh(geo, m);
+        o.position.set(x, y, z);
+        if (rot) o.rotation.set(...rot);
+        g.add(o);
+        return o;
+      };
+      const place = (g, x, z, w, ry) => {
+        g.position.set(x, g.position.y, z);
+        g.rotation.y = ry || 0;
+        CG.add(g);
+        blob(x, z, w * 1.4, w * 1.4, ry);
+      };
+      const tor = (r, t) => new THREE.TorusGeometry(r, t, 8, 48),
+        FL = [PI / 2, 0, 0],
+        BX = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+      function pleat(r, h, n, a) {
+        const g = Y(r, h, n * 4),
+          p = g.attributes.position;
+        for (let i = 0; i < p.count; i++) {
+          const x = p.getX(i),
+            z = p.getZ(i);
+          if (Math.hypot(x, z) > 0.01) {
+            const k = 1 + a * Math.cos(Math.atan2(z, x) * n);
+            p.setX(i, x * k);
+            p.setZ(i, z * k);
+          }
+        }
+        g.computeVertexNormals();
+        return g;
+      }
+
+      // ===== 2. cartridge debu (pleated) =====
+      col("Cartridge Debu", [0.2, 2, 0.4], 16, () => {
+        const dust = (x, z, r, h, t, o = {}) => {
+          const g = new THREE.Group();
+          mk(g, pleat(r, h, 48, 0.055), WH, 0, h / 2, 0);
+          mk(g, Y(r * 1.03, 0.14, 48), MET, 0, 0.07, 0);
+          for (let i = 1; i <= (o.b || 0); i++)
+            mk(g, Y(r * 1.045, 0.12, 48), WH, 0, (h * i) / (o.b + 1), 0);
+          if (t == "cap") {
+            mk(g, Y(r * 1.03, 0.18, 40), Mt(o.c, 0.3, 0.5), 0, h + 0.09, 0);
+            mk(g, tor(r * 0.9, 0.03), Mt(o.c, 0.3, 0.5), 0, h + 0.14, 0, FL);
+            mk(g, BX(r * 1.5, 0.42, 0.06), Mt(o.c, 0.3, 0.5), 0, h + 0.39, 0);
+            if (o.nub) {
+              mk(g, Y(r * 0.3, 0.3, 24), MET, 0, h + 0.33, 0);
+              mk(g, tor(r * 0.2, 0.03), MET, 0, h + 0.56, 0);
+            }
+          } else {
+            mk(
+              g,
+              new THREE.RingGeometry(r * 0.78, r * 1.02, 48),
+              MET,
+              0,
+              h + 0.01,
+              0,
+              [-PI / 2, 0, 0],
+            );
+            mk(
+              g,
+              new THREE.CylinderGeometry(r * 0.8, r * 0.8, 0.7, 32, 1, true),
+              LN,
+              0,
+              h - 0.35,
+              0,
+            );
+            if (t == "gasket") {
+              mk(g, tor(r * 0.92, 0.1), DK, 0, h + 0.08, 0, FL);
+              mk(g, tor(r * 0.86, 0.06), DK, 0, h + 0.02, 0, FL);
+            }
+            if (t == "blue")
+              mk(
+                g,
+                tor(r * 1.02, 0.14),
+                Mt(0x0a52e8, 0, 0.4),
+                0,
+                h + 0.1,
+                0,
+                FL,
+              );
+            if (t == "flange") {
+              mk(g, BX(r * 3, 0.08, r * 3), MET, 0, h + 0.04, 0);
+              mk(g, Y(r * 0.8, 0.03, 32), DK, 0, h + 0.09, 0);
+              mk(g, tor(r * 0.92, 0.1), DK, 0, h + 0.16, 0, FL);
+            }
+          }
+          place(g, x, z, r * 2.4, x);
+        };
+        dust(-3.4, -0.8, 1.15, 4, "gasket", { b: 2 });
+        dust(-1.2, -2.2, 0.5, 4.6, "cap", { c: 0xc2c8d0, nub: 1 });
+        dust(0.3, -0.6, 1, 3.5, "gasket", { b: 1 });
+        dust(1.9, -2.3, 0.45, 3.8, "cap", { c: 0xf1c40f });
+        dust(2.6, -0.2, 0.95, 2.6, "blue");
+        dust(4.9, -1.4, 1.1, 2.9, "flange", { b: 1 });
+        dust(-5.2, -2.3, 0.4, 4.8, "cap", { c: 0xd9382b });
+        dust(-1.6, 1.1, 0.75, 2.7, "gasket");
+        dust(0.4, 1.9, 0.8, 2.1, "gasket");
+        dust(2.6, 2, 0.45, 2.6, "gasket", { b: 2 });
+        {
+          const g = new THREE.Group();
+          mk(g, Y(1.4, 0.12, 64), MET, 0, 0, 0);
+          mk(g, tor(1.38, 0.06), MET, 0, 0, 0, FL);
+          mk(g, Y(0.15, 0.3, 16), MET, 0, 0.15, 0);
+          g.position.set(4.8, 1.25, 1.6);
+          g.rotation.set(-1, 0.6, 0);
+          CG.add(g);
+          blob(4.8, 1.6, 3, 2);
+        }
+        {
+          const g = new THREE.Group();
+          mk(
+            g,
+            new THREE.LatheGeometry(
+              [
+                [0.9, 0],
+                [0.9, 0.12],
+                [0.55, 0.22],
+                [0.3, 0.6],
+                [0.27, 0.85],
+                [0.2, 0.85],
+              ].map((a) => new THREE.Vector2(...a)),
+              40,
+            ),
+            new THREE.MeshStandardMaterial({
+              color: 0x101214,
+              metalness: 0.3,
+              roughness: 0.3,
+              side: THREE.DoubleSide,
+            }),
+            0,
+            0,
+            0,
+          );
+          place(g, 3, 3.6, 1.8);
+        }
+        [
+          [-3.6, 2.4],
+          [-2.9, 3],
+          [-4.2, 3.1],
+          [-3.4, 3.5],
+        ].forEach(([x, z]) => {
+          const g = new THREE.Group();
+          mk(
+            g,
+            new THREE.CylinderGeometry(0.3, 0.22, 0.8, 32),
+            Mt(0xbfc4ca, 0.6, 0.5),
+            0,
+            0.4,
+            0,
+          );
+          mk(g, tor(0.3, 0.07), Mt(0x0a52e8, 0, 0.4), 0, 0.8, 0, FL);
+          place(g, x, z, 0.7);
+        });
+      });
+
+      // ===== 3. mesh logam =====
+      const mc = {};
+      function mtex(k) {
+        if (mc[k]) return mc[k];
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const g = c.getContext("2d");
+        g.strokeStyle = "#9aa1a9";
+        if (k == "perf") {
+          g.fillStyle = "#8a9199";
+          g.fillRect(0, 0, 128, 128);
+          g.globalCompositeOperation = "destination-out";
+          for (let i = 0; i < 4; i++)
+            for (let j = 0; j < 4; j++) {
+              g.beginPath();
+              g.arc(16 + i * 32 + (j % 2) * 16, 16 + j * 32, 7, 0, 7);
+              g.fill();
+            }
+        } else {
+          g.lineWidth = k == "fine" ? 5 : 9;
+          const s = k == "fine" ? 16 : 32;
+          for (let i = -128; i <= 256; i += s) {
+            g.beginPath();
+            g.moveTo(i, 0);
+            g.lineTo(i + 128, 128);
+            g.moveTo(i + 128, 0);
+            g.lineTo(i, 128);
+            g.stroke();
+          }
+        }
+        const t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.encoding = THREE.sRGBEncoding;
+        return (mc[k] = t);
+      }
+      col("Mesh Logam", [0.8, 2, 0.4], 17, () => {
+        const mel = (x, z, r, h, k, o = {}) => {
+          const g = new THREE.Group(),
+            t = mtex(k).clone();
+          t.needsUpdate = true;
+          t.repeat.set(
+            Math.max(2, Math.round(r * 9.2)),
+            Math.max(1, Math.round(h * 1.5)),
+          );
+          mk(
+            g,
+            new THREE.CylinderGeometry(r, r, h, 48, 1, true),
+            new THREE.MeshStandardMaterial({
+              map: t,
+              alphaTest: 0.5,
+              side: THREE.DoubleSide,
+              metalness: 0.7,
+              roughness: 0.4,
+            }),
+            0,
+            h / 2,
+            0,
+          );
+          mk(g, Y(r, 0.05, 48), GM, 0, 0.03, 0);
+          [1 / 3, 2 / 3].forEach((f) =>
+            mk(g, tor(r * 1.005, 0.025), GM, 0, h * f, 0, FL),
+          );
+          if (o.collar) {
+            mk(g, Y(r * 1.05, 0.16, 48), MET, 0, h + 0.08, 0);
+            mk(g, Y(r * 1.02, 0.16, 48), MET, 0, 0.08, 0);
+            mk(g, Y(0.5, 0.35, 32), DK, 0, h + 0.3, 0);
+            mk(
+              g,
+              new THREE.TorusGeometry(0.45, 0.04, 8, 24, PI),
+              MET,
+              0,
+              h + 0.45,
+              0,
+            );
+          } else mk(g, tor(r, 0.04), GM, 0, h, 0, FL);
+          if (o.flange) {
+            mk(g, Y(r * 1.75, 0.1, 64), MET, 0, 0.05, 0);
+            for (let k = 0; k < 6; k++) {
+              const a = (k * PI) / 3;
+              mk(
+                g,
+                Y(0.1, 0.14, 12),
+                DK,
+                Math.cos(a) * r * 1.5,
+                0.1,
+                Math.sin(a) * r * 1.5,
+              );
+            }
+          }
+          place(g, x, z, r * (o.flange ? 3.4 : 2.4), x);
+        };
+        mel(-4.3, -0.4, 1.25, 4.4, "dia", { collar: 1 });
+        mel(-1.7, -2, 0.95, 5.2, "dia");
+        mel(1.8, -1.6, 1.3, 4.1, "dia");
+        mel(-2.3, 0.5, 0.65, 2.8, "fine");
+        mel(-0.4, -0.5, 0.55, 2.5, "perf");
+        mel(3.9, -1.3, 0.55, 2.9, "dia");
+        mel(-4.2, 1.9, 0.7, 2.4, "fine");
+        mel(-2.6, 2.1, 0.4, 1.4, "perf");
+        mel(-1.3, 1.7, 0.35, 0.8, "perf");
+        mel(0.2, 1.9, 0.7, 2.1, "fine");
+        mel(1.9, 1.8, 0.35, 1.5, "perf");
+        mel(2.7, 1.1, 0.3, 1.1, "dia");
+        mel(4.9, 1.9, 1, 2.1, "perf", { flange: 1 });
+        {
+          const g = new THREE.Group(),
+            b = Mt(0xb08a3a, 0.9, 0.35);
+          mk(g, pleat(0.22, 2.6, 14, 0.1), b, 0, 1.3, 0);
+          mk(g, new THREE.ConeGeometry(0.2, 0.45, 16), b, 0, 2.82, 0);
+          place(g, 0.9, 0.6, 0.8);
+        }
+        {
+          const g = new THREE.Group();
+          mk(g, Y(0.25, 1, 24), WH, 0, 0.65, 0);
+          mk(g, Y(0.3, 0.15, 24), MET, 0, 0.08, 0);
+          place(g, 7, 1, 0.7);
+        }
+        {
+          const g = new THREE.Group();
+          mk(g, Y(0.28, 1.2, 24), WH, 0, 0.75, 0);
+          mk(g, Y(0.32, 0.15, 24), MET, 0, 0.08, 0);
+          place(g, 7, 2.5, 0.7);
+        }
+        {
+          const g = new THREE.Group();
+          mk(g, Y(0.35, 1, 24), DK, 0, 0.35, 0, [0, 0, PI / 2]);
+          mk(g, tor(0.36, 0.04), MET, 0.5, 0.35, 0, [0, PI / 2, 0]);
+          place(g, 6.4, 3.7, 1, -0.5);
+        }
+      });
+
+      // ===== 4. filter bag =====
+      col("Filter Bag", [0.8, 2, 0], 16, () => {
+        const bag = (x, z, r, h, t) => {
+          const g = new THREE.Group();
+          mk(g, pleat(r, h, 7, 0.03), FB, 0, h / 2, 0);
+          mk(g, BX(0.04, h, 0.04), WH, r, h / 2, 0);
+          mk(g, tor(r * 0.97, 0.025), GM, 0, 0.25, 0, FL);
+          if (t) {
+            mk(g, tor(r * 1.02, 0.1), GM, 0, h, 0, FL);
+            mk(
+              g,
+              new THREE.CylinderGeometry(r * 0.92, r * 0.92, 0.5, 32, 1, true),
+              LN,
+              0,
+              h - 0.25,
+              0,
+            );
+          } else
+            mk(
+              g,
+              new THREE.SphereGeometry(r, 24, 10, 0, PI * 2, 0, PI / 2),
+              FB,
+              0,
+              h,
+              0,
+            );
+          place(g, x, z, r * 2.4, x * 3);
+        };
+        const cage = (x, z, r, h, ring) => {
+          const g = new THREE.Group();
+          for (let i = 0; i < 14; i++) {
+            const a = (i * PI) / 7;
+            mk(g, Y(0.025, h, 6), GM, Math.cos(a) * r, h / 2, Math.sin(a) * r);
+          }
+          [0.15, 0.35, 0.55, 0.75, 0.95].forEach((f) =>
+            mk(g, tor(r, 0.02), GM, 0, h * f, 0, FL),
+          );
+          if (ring) mk(g, tor(r * 1.05, 0.1), GM, 0, h, 0, FL);
+          place(g, x, z, r * 2.4);
+        };
+        const star = (x, z, r, h) => {
+          const g = new THREE.Group();
+          mk(g, pleat(r, h, 10, 0.3), FB, 0, 0.2 + h / 2, 0);
+          mk(g, Y(r * 1.15, 0.2, 40), FB, 0, 0.1, 0);
+          mk(g, tor(r * 1.1, 0.06), MET, 0, 0.22, 0, FL);
+          place(g, x, z, r * 2.6);
+        };
+        {
+          const g = new THREE.Group();
+          mk(g, BX(2.8, 5.2, 0.55), FB, 0, 2.6, 0);
+          mk(g, BX(2.8, 0.12, 0.62), WH, 0, 5.2, 0);
+          place(g, -1.2, -2.6, 2.8, 0.1);
+        }
+        bag(-3.3, -0.7, 0.65, 3.9, 1);
+        cage(-1, -0.6, 0.65, 4.4, 0);
+        bag(0.9, -1.9, 0.7, 3.7, 1);
+        cage(2, -0.5, 0.75, 4.2, 1);
+        bag(-2.7, 1, 0.55, 3, 0);
+        bag(-0.9, 1, 0.5, 2.6, 1);
+        bag(4.1, -1.4, 0.4, 2.2, 1);
+        {
+          const g = new THREE.Group(),
+            F = Mt(0xe9ecef, 0, 0.8);
+          mk(g, BX(1.9, 0.2, 0.45), F, 0, 3.5, 0);
+          mk(g, BX(1.9, 0.2, 0.45), F, 0, 0.1, 0);
+          [-0.85, 0.85].forEach((x) => mk(g, BX(0.2, 3.6, 0.45), F, x, 1.8, 0));
+          [-0.4, 0, 0.4].forEach((x) =>
+            mk(g, BX(0.1, 3.4, 0.4), WH, x, 1.8, 0),
+          );
+          mk(g, BX(1.7, 3.4, 0.08), GM, 0, 1.8, -0.1);
+          place(g, 5, -2.2, 2.4, 0.2);
+        }
+        {
+          const g = new THREE.Group(),
+            s = Mt(0xdadfe4, 0, 0.9);
+          mk(g, BX(3.2, 0.2, 2), WH, 0, 0.95, 0);
+          for (let i = 0; i < 22; i++)
+            mk(g, BX(0.08, 0.85, 1.8), s, -1.5 + i * 0.14, 0.5, 0);
+          mk(g, BX(3.2, 0.1, 2.05), Mt(0xd9b25a, 0, 0.6), 0, 0.05, 0);
+          place(g, -3.6, 2.7, 3.4, 0.5);
+        }
+        star(4.3, 1.4, 0.9, 0.9);
+        star(5.9, 2.1, 0.7, 0.7);
+        [
+          [0.3, 2.4, 0.1],
+          [1.8, 3.1, 0.5],
+        ].forEach(([x, z, ry]) => {
+          const g = new THREE.Group();
+          mk(g, pleat(0.5, 3.2, 6, 0.03), FB, 0, 0, 0, [0, 0, PI / 2]);
+          mk(g, tor(0.52, 0.08), GM, 1.6, 0, 0, [0, PI / 2, 0]);
+          g.position.y = 0.5;
+          place(g, x, z, 3.4, ry);
+        });
+      });
+
+      // ===== layout: berkelompok rapat, acak =====
+      (function () {
+        let s = 1;
+        const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647,
+          B = new THREE.Box3(),
+          bx = (o) => (o.updateMatrixWorld(true), B.setFromObject(o).clone());
+        cols.forEach((c, ci) => {
+          s = 11 + ci * 97;
+          const g = c.g;
+          g.children
+            .filter((o) => o.geometry && o.geometry.type == "PlaneGeometry")
+            .forEach((o) => g.remove(o));
+          const it = g.children
+              .slice()
+              .map((o) => {
+                o.rotation.y += rnd() * 6.28;
+                const b = bx(o),
+                  z = b.getSize(new THREE.Vector3());
+                return { o, z, a: z.x * z.z };
+              })
+              .sort((p, q) => q.z.y - p.z.y),
+            pl = [];
+          it.forEach(({ o }, i) => {
+            const b = bx(o),
+              z = b.getSize(new THREE.Vector3()),
+              ct = b.getCenter(new THREE.Vector3()),
+              w = z.x * 0.88,
+              d = z.z * 0.88;
+            let x = 0,
+              y = 0;
+            const mr = pl.reduce(
+              (m, q) => Math.max(m, Math.hypot(q.x, q.z)),
+              0,
+            );
+            if (i)
+              for (let k = 0; k < 400; k++) {
+                const a = rnd() * 6.283,
+                  r = mr * 0.6 + 0.6 + k * 0.04 + rnd() * 1.2;
+                x = Math.cos(a) * r;
+                y = Math.sin(a) * r * 0.8;
+                if (
+                  !pl.some(
+                    (q) =>
+                      Math.abs(q.x - x) < (q.w + w) / 2 + 0.06 &&
+                      Math.abs(q.z - y) < (q.d + d) / 2 + 0.06,
+                  )
+                )
+                  break;
+              }
+            o.position.x += x - ct.x;
+            o.position.z += y - ct.z;
+            o.position.y -= b.min.y;
+            pl.push({ x, z: y, w, d });
+          });
+          const b = bx(g),
+            z = b.getSize(new THREE.Vector3()),
+            ct = b.getCenter(new THREE.Vector3());
+          c.t0.set(ct.x, z.y * 0.42, ct.z);
+          c.rt = Math.max(z.x, z.z, z.y * 1.3) * 1.2 + 3;
+          CG = g;
+          pl.forEach((q) => blob(q.x, q.z, q.w * 1.6, q.d * 1.6));
+        });
+      })();
+
+      // ===== shader & pencahayaan realistis =====
+      var GR;
+      (function () {
+        R.shadowMap.enabled = true;
+        R.shadowMap.type = THREE.PCFSoftShadowMap;
+        S.add(new THREE.HemisphereLight(0xdfeaff, 0x3a4452, 0.15));
+        const fl = new THREE.DirectionalLight(0x9cc4ff, 0.2);
+        fl.position.set(-8, 5, -6);
+        S.add(fl);
+        dl.castShadow = true;
+        const sc = dl.shadow.camera;
+        sc.left = sc.bottom = -14;
+        sc.right = sc.top = 14;
+        sc.near = 1;
+        sc.far = 40;
+        dl.shadow.mapSize.set(2048, 2048);
+        dl.shadow.bias = -0.0004;
+        dl.shadow.normalBias = 0.03;
+        GR = new THREE.Mesh(
+          new THREE.PlaneGeometry(90, 90),
+          new THREE.ShadowMaterial({ opacity: 0 }),
+        );
+        GR.rotation.x = -PI / 2;
+        GR.position.y = 0.003;
+        GR.receiveShadow = true;
+        GR.raycast = () => {};
+        S.add(GR);
+        const nc = document.createElement("canvas");
+        nc.width = nc.height = 128;
+        const ng = nc.getContext("2d"),
+          id = ng.createImageData(128, 128);
+        for (let i = 0; i < id.data.length; i += 4) {
+          id.data[i] =
+            id.data[i + 1] =
+            id.data[i + 2] =
+              90 + Math.random() * 120;
+          id.data[i + 3] = 255;
+        }
+        ng.putImageData(id, 0, 0);
+        const nz = new THREE.CanvasTexture(nc);
+        nz.wrapS = nz.wrapT = THREE.RepeatWrapping;
+        nz.repeat.set(6, 6);
+        const cache = new Map(),
+          up = (m) => {
+            if (!m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) return m;
+            if (cache.has(m)) return cache.get(m);
+            const p = new THREE.MeshPhysicalMaterial();
+            THREE.MeshStandardMaterial.prototype.copy.call(p, m);
+            p.defines = { STANDARD: "", PHYSICAL: "" };
+            if (m.metalness < 0.3 && m.roughness <= 0.6) {
+              p.clearcoat = 0.7;
+              p.clearcoatRoughness = 0.12;
+            } else if (m.metalness < 0.3 && m.roughness >= 0.8) {
+              p.bumpMap = nz;
+              p.bumpScale = 0.8;
+            } else if (m.metalness >= 0.6) {
+              p.color.multiplyScalar(0.6);
+              p.envMapIntensity = 0.8;
+              p.roughnessMap = nz;
+              p.roughness = Math.min(1, m.roughness * 1.5 + 0.1);
+            }
+            p.customProgramCacheKey = () => "rim";
+            p.onBeforeCompile = (sh) => {
+              sh.fragmentShader = sh.fragmentShader.replace(
+                "#include <dithering_fragment>",
+                "#include <dithering_fragment>\n float fr=pow(1.0-clamp(dot(normalize(vNormal),normalize(vViewPosition)),0.,1.),3.);gl_FragColor.rgb+=fr*vec3(.04,.06,.08);",
+              );
+            };
+            cache.set(m, p);
+            return p;
+          };
+        cols.forEach((c) =>
+          c.g.traverse((o) => {
+            if (o.isMesh && o.geometry.type != "PlaneGeometry") {
+              o.material = up(o.material);
+              o.castShadow = o.receiveShadow = true;
+            }
+          }),
+        );
+      })();
+
+      // ===== wireframe -> produk nyata =====
+      cols.forEach((c) => {
+        S.add(c.g);
+        c.g.visible = false;
+        const ms = [];
+        c.g.traverse((o) => {
+          if (o.isMesh && o.geometry.type != "PlaneGeometry") ms.push(o);
+        });
+        ms.forEach((m) => {
+          m.material.clippingPlanes = [PR];
+          const w = new THREE.LineSegments(
+            new THREE.EdgesGeometry(m.geometry, 1),
+            WM,
+          );
+          w.raycast = () => {};
+          m.add(w);
+        });
+      });
+      let ci = 0,
+        tr = { from: -1, to: 0, t: 2.05 },
+        idle = 0;
+      const HT = 7.5;
+      function upd(dt) {
+        if (!tr) {
+          if ((idle += dt) > 7) {
+            const next = (ci + 1) % cols.length;
+            tr = { from: ci, to: next, t: 0 };
+            ci = next;
+            focus = null;
+            T0.copy(cols[ci].t0);
+            setDefaultTarget();
+            D.rt = cols[ci].rt * fitScale();
+            idle = 0;
+          }
+          return;
+        }
+        const t = (tr.t += dt),
+          a = cols[tr.from] && cols[tr.from].g,
+          b = cols[tr.to].g;
+        let h;
+        if (t < 1.6) {
+          h = HT * (1 - t / 1.6) - 0.3;
+          WM.opacity = 1;
+        } else if (t < 2.1) {
+          h = -0.3;
+          WM.opacity = 1 - (t - 1.6) / 0.5;
+        } else {
+          if (a) a.visible = false;
+          b.visible = true;
+          if (t < 2.6) {
+            h = -0.3;
+            WM.opacity = (t - 2.1) / 0.5;
+          } else if (t < 4.5) {
+            h = -0.3 + (HT * (t - 2.6)) / 1.9;
+            WM.opacity = 1;
+          } else {
+            tr = null;
+            PR.constant = 99;
+            PW.constant = -99;
+            WM.opacity = 0;
+            return;
+          }
+        }
+        PR.constant = h;
+        PW.constant = -h;
+      }
+
+      // kamera orbit + klik untuk fokus
+      const T0 = new THREE.Vector3(0, 1.7, -0.2),
+        tgt = T0.clone(),
+        cur = T0.clone(),
+        D = { th: 0.35, ph: 1.2, r: 14, rt: 14 };
+      let focus = null;
+      const fitScale = () => Math.max(1, Math.min(2.4, 1 / C.aspect));
+      const setDefaultTarget = () => {
+        tgt.copy(T0);
+        if (C.aspect > 1.3) tgt.x -= 1.2;
+      };
+      T0.copy(cols[0].t0);
+      setDefaultTarget();
+      cur.copy(T0);
+      D.r = D.rt = cols[0].rt * fitScale();
+      const ray = new THREE.Raycaster(),
+        mv = new THREE.Vector2(),
+        pts = new Map();
+      let pd = 0,
+        dn = null;
+      function pick(e) {
+        if (tr) return;
+        mv.set(
+          (e.clientX / innerWidth) * 2 - 1,
+          -(e.clientY / innerHeight) * 2 + 1,
+        );
+        ray.setFromCamera(mv, C);
+        const h = ray.intersectObjects(cols[ci].g.children, true)[0];
+        let g = null;
+        if (h) {
+          g = h.object;
+          while (g.parent !== cols[ci].g) g = g.parent;
+        }
+        if (g && g !== focus) {
+          focus = g;
+          const bx = new THREE.Box3().setFromObject(g),
+            s = bx.getSize(new THREE.Vector3());
+          tgt.copy(bx.getCenter(new THREE.Vector3()));
+          D.rt = Math.max(s.x, s.y, s.z) * 2.3 + 3;
+        } else {
+          focus = null;
+          setDefaultTarget();
+          D.rt = cols[ci].rt * fitScale();
+        }
+      }
+      const cv = R.domElement;
+      cv.onpointerdown = (e) => {
+        idle = 0;
+        cv.setPointerCapture(e.pointerId);
+        pts.set(e.pointerId, e);
+        dn = pts.size == 1 ? { x: e.clientX, y: e.clientY } : null;
+        if (pts.size == 2) {
+          const [a, b] = [...pts.values()];
+          pd = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        }
+      };
+      cv.onpointermove = (e) => {
+        const p = pts.get(e.pointerId);
+        if (!p) return;
+        if (pts.size == 2) {
+          pts.set(e.pointerId, e);
+          const [a, b] = [...pts.values()],
+            d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+          D.rt = Math.min(40, Math.max(4, (D.rt * pd) / d));
+          pd = d;
+          return;
+        }
+        D.th -= (e.clientX - p.clientX) * 0.006;
+        D.ph = Math.min(
+          1.55,
+          Math.max(0.2, D.ph - (e.clientY - p.clientY) * 0.005),
+        );
+        pts.set(e.pointerId, e);
+      };
+      cv.onpointerup = (e) => {
+        if (dn && Math.hypot(e.clientX - dn.x, e.clientY - dn.y) < 5) pick(e);
+        dn = null;
+        pts.delete(e.pointerId);
+      };
+      cv.onpointercancel = (e) => pts.delete(e.pointerId);
+      cv.onwheel = (e) => {
+        e.preventDefault();
+        D.rt = Math.min(40, Math.max(4, D.rt * (1 + e.deltaY * 0.001)));
+      };
+      addEventListener("resize", () => {
+        R.setSize(innerWidth, innerHeight);
+        C.aspect = innerWidth / innerHeight;
+        C.updateProjectionMatrix();
+        if (!focus) setDefaultTarget();
+        D.rt = cols[ci].rt * fitScale();
+      });
+      let last = 0;
+      (function loop(t) {
+        requestAnimationFrame(loop);
+        const dt = Math.min((t - last) / 1000, 0.05);
+        last = t;
+        upd(dt);
+        GR.material.opacity += ((tr ? 0 : 0.34) - GR.material.opacity) * 0.08;
+        if (!pts.size) D.th += dt * 0.2;
+        D.r += (D.rt - D.r) * 0.06;
+        cur.lerp(tgt, 0.06);
+        C.position.set(
+          cur.x + D.r * Math.sin(D.ph) * Math.sin(D.th),
+          cur.y + D.r * Math.cos(D.ph),
+          cur.z + D.r * Math.sin(D.ph) * Math.cos(D.th),
+        );
+        C.lookAt(cur);
+        R.render(S, C);
+      })(0);
+    </script>
+  </body>
+</html>

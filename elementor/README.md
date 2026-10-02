@@ -12,7 +12,7 @@ HTML di folder `sections/` adalah blok siap tempel untuk Elementor. Setiap file 
 
 ## Yang perlu disesuaikan
 
-- Di `hero.html`, ganti `https://your-domain.vercel.app` dengan domain Vercel yang sebenarnya. File `model-3d.html` harus ikut ter-deploy di root domain tersebut. Jika tidak ingin menampilkan model, hapus elemen iframe dari snippet.
+- `hero.html` memakai model produk di `https://indoarthawafilter.vercel.app/produk-3d.html?embed=1`. Pastikan `produk-3d.html` ikut ter-deploy di root domain Vercel. Model transparan, berputar, dan berpindah kategori otomatis tanpa tombol.
 - Form di `quote.html` hanya tampilan dan belum mengirim data. Untuk menerima request, ganti form HTML dengan Elementor Form atau hubungkan ke endpoint/WhatsApp yang benar.
 - Font Manrope dan foto produk dimuat dari layanan eksternal (Google Fonts dan Unsplash). Untuk kontrol jangka panjang, unggah aset ke WordPress sendiri dan ubah URL-nya.
 - Navigasi mobile saat ini menyembunyikan link, mengikuti versi situs statis.
@@ -20,6 +20,6 @@ HTML di folder `sections/` adalah blok siap tempel untuk Elementor. Setiap file 
 
 ## Vercel dan sumber utama
 
-Situs utama tetap di root repo (`index.html` dan `model-3d.html`) dengan CSS di `css/`. Deploy repo di Vercel sebagai static site: framework preset **Other**, build command kosong, output directory `.`. Tidak perlu dependency atau build step.
+Situs utama tetap di root repo (`index.html`, `produk-3d.html`, dan `model-3d.html`) dengan CSS di `css/`. Hero memakai `produk-3d.html`; file model 3D lama tetap tersedia. Deploy repo di Vercel sebagai static site: framework preset **Other**, build command kosong, output directory `.`. Tidak perlu dependency atau build step.
 
 Perbarui `index.html` dan CSS sebagai versi utama. Jika ada perubahan desain yang ingin dibawa ke Elementor, perbarui snippet terkait di folder ini juga. Snippet Elementor adalah ekspor siap tempel, bukan file yang otomatis dibuat dari halaman utama.
