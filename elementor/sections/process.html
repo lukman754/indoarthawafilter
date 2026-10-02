@@ -1,0 +1,136 @@
+<style>
+  @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap");
+  .af-process,
+  .af-process * {
+    box-sizing: border-box;
+  }
+  .af-process {
+    --af-blue: #087fa3;
+    --af-muted: #5c6b70;
+    --af-line: #d5dddf;
+    width: min(1240px, 100%);
+    margin: 0 auto;
+    padding: 90px 32px 96px;
+    color: #17252a;
+    font:
+      400 15px/1.5 Manrope,
+      Arial,
+      sans-serif;
+  }
+  .af-process-eyebrow {
+    margin: 0 0 20px;
+    color: var(--af-blue);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .af-process-head {
+    max-width: 650px;
+    margin-bottom: 42px;
+  }
+  .af-process h2 {
+    margin: 0 0 16px;
+    font-size: 38px;
+    line-height: 1.1;
+    font-weight: 600;
+  }
+  .af-process-head > p {
+    margin: 0;
+    color: var(--af-muted);
+    font-size: 14px;
+    line-height: 1.75;
+  }
+  .af-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid #aebabc;
+    border-bottom: 1px solid #aebabc;
+  }
+  .af-step {
+    padding: 27px 30px 30px 0;
+    border-right: 1px solid var(--af-line);
+  }
+  .af-step:not(:first-child) {
+    padding-left: 25px;
+  }
+  .af-step:last-child {
+    border-right: 0;
+  }
+  .af-step-number {
+    display: inline-grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid var(--af-blue);
+    border-radius: 50%;
+    color: var(--af-blue);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .af-step h3 {
+    margin: 25px 0 10px;
+    font-size: 19px;
+    line-height: 1.35;
+    font-weight: 600;
+  }
+  .af-step p {
+    max-width: 250px;
+    margin: 0;
+    color: var(--af-muted);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  @media (max-width: 560px) {
+    .af-process {
+      padding: 64px 18px;
+    }
+    .af-process h2 {
+      font-size: 31px;
+    }
+    .af-steps {
+      grid-template-columns: 1fr;
+    }
+    .af-step,
+    .af-step:not(:first-child) {
+      padding: 22px 0;
+      border-right: 0;
+      border-bottom: 1px solid var(--af-line);
+    }
+    .af-step h3 {
+      margin-top: 16px;
+    }
+    .af-step:last-child {
+      border-bottom: 0;
+    }
+  }
+</style>
+<section class="af-process" id="af-process">
+  <div class="af-process-head">
+    <div class="af-process-eyebrow">Cara kerja</div>
+    <h2>Mulai dari kebutuhan yang Anda punya.</h2>
+    <p>
+      Tidak perlu mengetahui nama produknya terlebih dahulu. Informasi yang Anda
+      punya sudah cukup untuk memulai.
+    </p>
+  </div>
+  <div class="af-steps">
+    <div class="af-step">
+      <div class="af-step-number">01</div>
+      <h3>Kirim informasi</h3>
+      <p>Foto produk, ukuran, spesifikasi, quantity atau kondisi existing.</p>
+    </div>
+    <div class="af-step">
+      <div class="af-step-number">02</div>
+      <h3>Kami cek</h3>
+      <p>
+        Kebutuhan dicocokkan dengan tipe dan spesifikasi produk yang sesuai.
+      </p>
+    </div>
+    <div class="af-step">
+      <div class="af-step-number">03</div>
+      <h3>Quotation</h3>
+      <p>Anda menerima detail produk dan penawaran untuk kebutuhan tersebut.</p>
+    </div>
+  </div>
+</section>

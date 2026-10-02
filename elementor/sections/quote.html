@@ -1,0 +1,187 @@
+<style>
+  @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap");
+  .af-quote,
+  .af-quote * {
+    box-sizing: border-box;
+  }
+  .af-quote {
+    --af-dark: #192a30;
+    --af-muted: #aeb8bb;
+    --af-signal: #f0c64b;
+    --af-line: #c6d0d2;
+    --af-text: #17252a;
+    display: grid;
+    width: min(1176px, calc(100% - 64px));
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 72px;
+    margin: 0 auto 86px;
+    padding: 60px;
+    border-radius: 5px;
+    background: var(--af-dark);
+    color: #fff;
+    font:
+      400 15px/1.5 Manrope,
+      Arial,
+      sans-serif;
+  }
+  .af-quote-eyebrow {
+    margin: 0 0 20px;
+    color: var(--af-signal);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .af-quote h2 {
+    margin: 8px 0 18px;
+    font-size: 42px;
+    line-height: 1.08;
+    font-weight: 600;
+  }
+  .af-quote-copy > p {
+    max-width: 370px;
+    margin: 0;
+    color: var(--af-muted);
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .af-quote-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+    gap: 10px 14px;
+  }
+  .af-quote-form label {
+    align-self: end;
+    color: #e2e9ea;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .af-quote-form input,
+  .af-quote-form textarea {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 14px;
+    border: 1px solid var(--af-line);
+    border-radius: 3px;
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    background: #f8f9f8;
+    color: var(--af-text);
+    font:
+      400 13px/1.5 Manrope,
+      Arial,
+      sans-serif;
+    transition: outline-color 160ms ease;
+  }
+  .af-quote-form input:focus,
+  .af-quote-form textarea:focus {
+    outline-color: var(--af-signal);
+  }
+  .af-quote-form label[for="af-contact-notes"],
+  .af-quote-form textarea,
+  .af-quote-form button {
+    grid-column: 1/-1;
+  }
+  .af-quote-form textarea {
+    min-height: 110px;
+    resize: vertical;
+  }
+  .af-quote-form button {
+    min-height: 50px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--af-signal);
+    color: var(--af-dark);
+    font:
+      700 13px/1.4 Manrope,
+      Arial,
+      sans-serif;
+    cursor: pointer;
+    transition: background 160ms ease;
+  }
+  .af-quote-form button:hover {
+    background: #ffda64;
+  }
+  @media (max-width: 850px) {
+    .af-quote {
+      grid-template-columns: 1fr;
+      gap: 36px;
+      padding: 42px;
+    }
+  }
+  @media (max-width: 560px) {
+    .af-quote {
+      width: calc(100% - 36px);
+      gap: 26px;
+      margin-bottom: 58px;
+      padding: 32px 22px;
+    }
+    .af-quote h2 {
+      font-size: 34px;
+    }
+    .af-quote-form {
+      grid-template-columns: 1fr;
+      gap: 9px;
+    }
+    .af-quote-form label[for="af-contact-notes"],
+    .af-quote-form textarea,
+    .af-quote-form button {
+      grid-column: auto;
+    }
+    .af-quote-form label:not(:first-child) {
+      margin-top: 5px;
+    }
+  }
+</style>
+<section class="af-quote" id="af-contact">
+  <div class="af-quote-copy">
+    <div class="af-quote-eyebrow">Request quotation</div>
+    <h2>Ada kebutuhan filter?</h2>
+    <p>
+      Kirim detail yang Anda punya. Jika hanya memiliki foto atau kode produk,
+      sertakan juga agar lebih mudah kami cek.
+    </p>
+  </div>
+  <form class="af-quote-form" onsubmit="return false;">
+    <label for="af-contact-name">Nama / perusahaan</label
+    ><input
+      id="af-contact-name"
+      name="name"
+      type="text"
+      placeholder="Nama Anda atau perusahaan"
+      autocomplete="name"
+    />
+    <label for="af-contact-phone">Nomor WhatsApp</label
+    ><input
+      id="af-contact-phone"
+      name="phone"
+      type="tel"
+      placeholder="Contoh: 08xx xxxx xxxx"
+      autocomplete="tel"
+    />
+    <label for="af-contact-product">Produk / kebutuhan</label
+    ><input
+      id="af-contact-product"
+      name="product"
+      type="text"
+      placeholder="Contoh: cartridge filter"
+    />
+    <label for="af-contact-quantity">Quantity</label
+    ><input
+      id="af-contact-quantity"
+      name="quantity"
+      type="text"
+      inputmode="numeric"
+      placeholder="Jumlah yang dibutuhkan"
+    />
+    <label for="af-contact-notes">Spesifikasi atau catatan</label
+    ><textarea
+      id="af-contact-notes"
+      name="notes"
+      placeholder="Ukuran, kode produk, atau kondisi existing"
+    ></textarea>
+    <button type="submit">Kirim request</button>
+  </form>
+</section>

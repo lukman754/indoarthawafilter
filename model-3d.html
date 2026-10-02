@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Arthawa Filter – Instalasi Pengolahan Air 3D</title>
+    <style>
+      :root {
+        --bg: #07162b;
+        --ink: #e6f1ff;
+        --mut: #8fb0d6;
+        --acc: #2f8cff;
+        --card: rgba(10, 28, 54, 0.88);
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Segoe UI", system-ui, sans-serif;
+        overflow: hidden;
+      }
+      html.embed,
+      html.embed body {
+        background: transparent;
+      }
+      canvas {
+        display: block;
+        touch-action: none;
+      }
+      #lab {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+      }
+      .t {
+        position: absolute;
+        left: 0;
+        top: 0;
+        pointer-events: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--card);
+        border: 1px solid #1d4a82;
+        border-radius: 6px;
+        padding: 5px 10px;
+        font-size: 12px;
+        white-space: nowrap;
+        cursor: default;
+        transform: translate(-50%, -100%);
+      }
+      .t b {
+        background: #0f4fb0;
+        border: 1px solid #4aa0ff;
+        border-radius: 4px;
+        min-width: 22px;
+        text-align: center;
+        padding: 2px 0;
+        font-size: 12px;
+      }
+      .t i {
+        display: none;
+        position: absolute;
+        left: 0;
+        top: calc(100% + 4px);
+        width: 210px;
+        white-space: normal;
+        font-style: normal;
+        background: var(--card);
+        border: 1px solid #1d4a82;
+        border-radius: 6px;
+        padding: 7px 9px;
+        color: var(--mut);
+        line-height: 1.35;
+        z-index: 5;
+      }
+      .t:hover i,
+      .t.on i {
+        display: block;
+      }
+      .t:hover {
+        z-index: 9;
+      }
+      #hd {
+        position: absolute;
+        left: 16px;
+        top: calc(12px + env(safe-area-inset-top, 0px));
+        pointer-events: none;
+      }
+      #hd h1 {
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: 0.5px;
+      }
+      #hd p {
+        margin: 2px 0 0;
+        color: var(--mut);
+        font-size: 13px;
+      }
+      #hint {
+        position: absolute;
+        left: 16px;
+        bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+        color: var(--mut);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+      const embedMode = new URLSearchParams(location.search).has("embed");
+      document.documentElement.classList.toggle("embed", embedMode);
+      const W = () => innerWidth,
+        H = () => innerHeight;
+      const R = new THREE.WebGLRenderer({ antialias: true, alpha: embedMode });
+      R.setPixelRatio(Math.min(devicePixelRatio, 2));
+      R.setSize(W(), H());
+      document.body.prepend(R.domElement);
+      const S = new THREE.Scene();
+      S.background = embedMode ? null : new THREE.Color(0x07162b);
+      S.fog = embedMode ? null : new THREE.Fog(0x07162b, 70, 140);
+      const C = new THREE.PerspectiveCamera(
+        embedMode ? 40 : 35,
+        W() / H(),
+        0.1,
+        300,
+      );
+      S.add(new THREE.HemisphereLight(0xbfdcff, 0x0a1a33, 0.9));
+      const dl = new THREE.DirectionalLight(0xffffff, 0.8);
+      dl.position.set(20, 40, 15);
+      S.add(dl);
+      const grid = new THREE.GridHelper(120, 60, 0x2f8cff, 0x153a63);
+      const gridMaterials = (helper) =>
+        Array.isArray(helper.material) ? helper.material : [helper.material];
+      gridMaterials(grid).forEach((material) => {
+        material.transparent = true;
+        material.opacity = 0.45;
+        material.depthWrite = false;
+      });
+      if (!embedMode) S.add(grid);
+      const M = (c, o = 1, e = 0.25) =>
+        new THREE.MeshStandardMaterial({
+          color: c,
+          transparent: o < 1,
+          opacity: o,
+          metalness: 0.25,
+          roughness: 0.5,
+          emissive: c,
+          emissiveIntensity: e,
+          depthWrite: o >= 1,
+        });
+      const LM = new THREE.LineBasicMaterial({
+        color: 0x8fd3ff,
+        transparent: true,
+        opacity: 0.45,
+      });
+      const G = new THREE.Group();
+      S.add(G);
+      function add(g, m, x, y, z, edge = true, rot) {
+        const o = new THREE.Mesh(g, m);
+        o.position.set(x, y, z);
+        if (rot) o.rotation.set(...rot);
+        if (edge)
+          o.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), LM));
+        G.add(o);
+        return o;
+      }
+      const B = (w, h, d) => new THREE.BoxGeometry(w, h, d),
+        Y = (r, h, s = 32) => new THREE.CylinderGeometry(r, r, h, s);
+      const pad = (x, z, w, d) =>
+        add(B(w, 0.3, d), M(0x0f2f5c, 0.8, 0.15), x, 0.15, z);
+      const WHITE = 0xdde8f5,
+        BLUE = 0x2f8cff,
+        GLASS = 0x5fb0ff;
+
+      // 01 intake + feed pump
+      pad(-21, -8, 5, 5);
+      add(B(3.5, 2.4, 3.5), M(0x4b5d78, 0.7), -21, 1.5, -8);
+      add(Y(0.7, 1.6), M(BLUE), -17.5, 1.1, -8, true, [0, 0, Math.PI / 2]);
+      add(B(2.4, 0.3, 1.8), M(0x16407a), -17.5, 0.4, -8);
+      // 02 dosing
+      pad(-12, -8, 6.5, 5);
+      [
+        [-1.9, 0xe6edf7],
+        [0, 0xe6edf7],
+        [1.9, 0xe6edf7],
+      ].forEach(([dx, c], i) => {
+        add(Y(0.9, 3.2), M(c, 0.9, 0.1), -12 + dx, 2, -8.5);
+        add(B(0.8, 0.8, 0.8), M(0x15407a), -12 + dx, 0.7, -6.8);
+      });
+      // 03 equalization (horizontal)
+      pad(-1.5, -8, 12, 7);
+      add(Y(3, 10.5, 40), M(GLASS, 0.35), -1.5, 3.5, -8, true, [
+        0,
+        0,
+        Math.PI / 2,
+      ]);
+      add(
+        new THREE.SphereGeometry(3, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+        M(GLASS, 0.35),
+        -6.75,
+        3.5,
+        -8,
+        false,
+        [0, 0, Math.PI / 2],
+      );
+      add(Y(0.9, 1, 16), M(GLASS, 0.5), -1.5, 7, -8);
+      // 04 DAF
+      pad(11, -8, 12.5, 8.5);
+      add(B(11, 3.2, 7), M(GLASS, 0.22), 11, 1.9, -8);
+      add(B(10.6, 2, 6.6), M(0x1d6fd6, 0.6, 0.4), 11, 1.4, -8, false);
+      [-1.5, 1.5].forEach((o) =>
+        add(B(0.15, 2.8, 6.6), M(GLASS, 0.6), 11 + o, 1.8, -8, false),
+      );
+      // 05 sludge: screw press + truck
+      pad(23, -14, 8, 4);
+      add(Y(0.8, 5, 24), M(0xcfdcec), 23, 1.6, -14, true, [0, 0, Math.PI / 2]);
+      add(B(5.6, 0.5, 1.8), M(0x2a4468), 23, 0.6, -14);
+      add(Y(0.5, 1.4), M(BLUE), 24.5, 2.7, -14);
+      add(B(4.2, 1.8, 2.2), M(0x23406b), 30, 1.5, -14);
+      add(B(3.6, 0.8, 1.8), M(0x8a5a36, 1, 0.1), 30, 2.5, -14, false);
+      add(B(1.6, 1.6, 2), M(0xe3ebf5), 32.6, 1.4, -14);
+      // 06 filtration
+      pad(3, 4, 10, 6);
+      add(Y(2, 5.6), M(BLUE, 0.75, 0.3), 0.5, 3, 4);
+      add(
+        new THREE.SphereGeometry(2, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+        M(BLUE, 0.75, 0.3),
+        0.5,
+        5.8,
+        4,
+      );
+      add(Y(2, 5), M(BLUE, 0.75, 0.3), 5.5, 2.7, 4);
+      add(
+        new THREE.SphereGeometry(2, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+        M(BLUE, 0.75, 0.3),
+        5.5,
+        5.2,
+        4,
+      );
+      // 09 RO
+      pad(-9, 6, 9, 6);
+      for (let i = 0; i < 3; i++)
+        for (let j = 0; j < 3; j++)
+          add(
+            Y(0.42, 7.4, 16),
+            M(0xe6edf7, 0.9, 0.1),
+            -9.3,
+            1 + i * 1.1,
+            4.6 + j * 1.1,
+            true,
+            [0, 0, Math.PI / 2],
+          );
+      add(B(7.6, 0.2, 3.6), M(0x2a4468), -9.3, 0.4, 5.7);
+      add(Y(0.6, 3.2), M(BLUE), -13.2, 2, 5.8);
+      // 07 UV
+      pad(13, 3, 9, 3.5);
+      add(Y(1, 7, 24), M(0x7fc4ff, 0.85, 0.7), 13, 2, 3, true, [
+        0,
+        0,
+        Math.PI / 2,
+      ]);
+      add(B(1.6, 3.2, 1.4), M(0xcfd8e4), 17.8, 1.9, 3);
+      // 08 treated tank
+      pad(22, 9, 10, 10);
+      add(Y(4, 7.5, 40), M(BLUE, 0.5, 0.35), 22, 4, 9);
+      add(new THREE.ConeGeometry(4, 1.6, 40), M(BLUE, 0.5, 0.35), 22, 8.5, 9);
+      // 10 control
+      pad(-19, 7, 6, 7);
+      add(B(2.6, 3, 2), M(0xcfd8e4, 0.9, 0.1), -19, 1.8, 6);
+      add(B(2.2, 2.2, 1.8), M(0x6d7f99, 0.8), -16.2, 1.4, 6);
+      add(Y(0.6, 2.2), M(0xe6edf7), -17.2, 1.4, 9);
+      add(Y(0.6, 2.2), M(0xe6edf7), -15.8, 1.4, 9);
+
+      // ===== detail =====
+      const ring = (x, y, z, r, rot, t = 0.07, c = 0xcfe6ff) =>
+        add(
+          new THREE.TorusGeometry(r, t, 8, 36),
+          M(c, 0.9, 0.3),
+          x,
+          y,
+          z,
+          false,
+          rot,
+        );
+      const RX = [0, Math.PI / 2, 0],
+        RY = [Math.PI / 2, 0, 0],
+        dark = M(0x2a4468, 1, 0.1),
+        steel = M(0xcfd8e4, 1, 0.1);
+      const tag = () => {};
+      // intake
+      for (let i = 0; i < 9; i++)
+        add(B(0.06, 1.9, 0.08), steel, -19.2, 1.7, -9.4 + i * 0.4, false);
+      add(B(0.1, 0.15, 3.4), steel, -19.2, 2.7, -8, false);
+      add(B(2.8, 0.05, 2.8), M(BLUE, 0.8, 0.6), -21, 2.72, -8, false);
+      for (let i = 0; i < 5; i++)
+        ring(-17.9 + i * 0.25, 1.1, -8, 0.72, RX, 0.04, 0x8fd3ff);
+      // dosing
+      [-1.9, 0, 1.9].forEach((dx, i) => {
+        const x = -12 + dx,
+          z = -8.5,
+          cc = [0x66ccff, 0xffd166, 0x9be37d][i];
+        add(Y(0.95, 0.12), M(cc, 1, 0.4), x, 3.66, z, false);
+        [1, 2.2, 3.2].forEach((h) => ring(x, h, z, 0.92, RY));
+        add(B(0.35, 0.45, 0.35), dark, x, 4, z, false);
+        add(Y(0.04, 1.2), steel, x, 3, z, false);
+        [-1, 1].forEach((k) =>
+          add(Y(0.07, 0.5), dark, x + k * 0.6, 0.5, z, false),
+        );
+        add(Y(0.22, 0.5), steel, x, 1.35, -6.8, false);
+        tag(
+          ["pH Adjustment", "Coagulant", "Flocculant"][i],
+          x,
+          4.9 + i * 0.7,
+          z,
+          4.2,
+        );
+      });
+      add(Y(0.07, 5.6), steel, -12, 1.6, -6.5, false, [0, 0, Math.PI / 2]);
+      // equalization
+      for (let i = 0; i < 12; i++)
+        ring(-6.2 + i * 0.9, 3.5, -8, 3.03, RX, 0.05, 0x9bd0ff);
+      [-5, 2].forEach((x) => add(B(0.9, 0.7, 4.2), dark, x, 0.65, -8, false));
+      [-0.3, 0.3].forEach((d) =>
+        add(B(0.06, 6, 0.06), steel, -1.5 + d, 3.4, -4.9, false),
+      );
+      for (let i = 0; i < 12; i++)
+        add(B(0.6, 0.04, 0.04), steel, -1.5, 0.7 + i * 0.5, -4.9, false);
+      add(Y(0.55, 0.4), steel, -3.5, 6.6, -8, false);
+      // DAF
+      [5.6, 8.2, 11, 13.8, 16.4].forEach((x) =>
+        [-4.5, -11.5].forEach((z) =>
+          add(B(0.08, 1, 0.08), steel, x, 4, z, false),
+        ),
+      );
+      [-4.5, -11.5].forEach((z) =>
+        add(B(10.8, 0.06, 0.06), steel, 11, 4.5, z, false),
+      );
+      [5.6, 16.4].forEach((x) =>
+        add(B(0.06, 0.06, 7), steel, x, 4.5, -8, false),
+      );
+      const scr = add(
+        B(0.25, 0.3, 7),
+        M(0x8fd3ff, 0.9, 0.5),
+        9,
+        3.65,
+        -8,
+        false,
+      );
+      const bub = [],
+        bm = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.6,
+        });
+      for (let i = 0; i < 70; i++) {
+        const b = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), bm);
+        b.position.set(
+          6.2 + Math.random() * 9.6,
+          0.6 + Math.random() * 1.8,
+          -10.8 + Math.random() * 5.6,
+        );
+        G.add(b);
+        bub.push(b);
+      }
+      add(B(0.8, 1, 0.6), steel, 9, 0.8, -4.2, false);
+      tag("Dissolved Air Flotation (DAF)", 11, 5.6, -8, 7);
+      // sludge
+      for (let i = 0; i < 12; i++)
+        ring(20.9 + i * 0.4, 1.6, -14, 0.81, RX, 0.05, 0x9bb4d0);
+      add(
+        new THREE.CylinderGeometry(0.9, 0.3, 0.9, 16),
+        M(0x7a8fa8),
+        21.5,
+        3,
+        -14,
+        false,
+      );
+      add(B(1.2, 1.1, 1.1), dark, 26, 1.5, -14, false);
+      [21.5, 24.5].forEach((x) =>
+        add(B(0.3, 0.6, 1.6), dark, x, 0.55, -14, false),
+      );
+      [28.8, 30.4, 32.6].forEach((x) =>
+        [-1.1, 1.1].forEach((z) =>
+          add(Y(0.5, 0.4, 16), dark, x, 0.55, -14 + z, false, [
+            Math.PI / 2,
+            0,
+            0,
+          ]),
+        ),
+      );
+      add(B(0.05, 0.7, 1.4), M(0x7fc4ff, 0.8, 0.6), 33.42, 1.8, -14, false);
+      for (let i = 0; i < 4; i++)
+        add(
+          new THREE.SphereGeometry(0.7, 10, 8),
+          M(0x8a5a36, 1, 0.1),
+          29 + i * 0.8,
+          3.1,
+          -14 + ((i % 2) - 0.5) * 0.6,
+          false,
+        );
+      tag("Screw Press", 23, 4.2, -14, 4);
+      // filtration
+      [
+        [0.5, 5.8],
+        [5.5, 5.2],
+      ].forEach(([x, h], i) => {
+        ring(x, 0.7, 4, 2.02, RY, 0.1);
+        ring(x, 3.6, 4, 2.02, RY, 0.08);
+        for (let k = 0; k < 3; k++) {
+          const a = k * 2.1;
+          add(
+            Y(0.1, 0.8),
+            dark,
+            x + Math.cos(a) * 1.6,
+            0.4,
+            4 + Math.sin(a) * 1.6,
+            false,
+          );
+        }
+        add(Y(0.4, 0.3, 16), steel, x, 2.5, 6.1, false, [Math.PI / 2, 0, 0]);
+        add(Y(0.18, 0.08), M(0xffffff), x + 1, 4.4, 5.8, false, [
+          Math.PI / 2,
+          0,
+          0,
+        ]);
+        tag(["GAC Filter", "Disc Filter"][i], x, 3.1, 4, 3.6);
+      });
+      add(Y(0.12, 5), steel, 3, 0.9, 6.3, false, [0, 0, Math.PI / 2]);
+      [0.5, 5.5].forEach((x) => add(Y(0.12, 1), steel, x, 0.75, 6.3, false));
+      ring(3, 1.4, 6.3, 0.28, [0, 0, 0], 0.05, 0xff6b6b);
+      add(Y(0.04, 0.5), steel, 3, 1.1, 6.3, false);
+      // RO
+      for (let i = 0; i < 3; i++)
+        for (let j = 0; j < 3; j++) {
+          const y = 1 + i * 1.1,
+            z = 4.6 + j * 1.1;
+          [-13, -5.6].forEach((x) => ring(x, y, z, 0.45, RX, 0.06));
+          [-13.1, -5.5].forEach((x) =>
+            add(Y(0.5, 0.25, 16), steel, x, y, z, false, [0, 0, Math.PI / 2]),
+          );
+        }
+      [-12.6, -9.3, -6].forEach((x) =>
+        add(B(0.12, 3.4, 2.8), M(0x2a4468, 0.55, 0.1), x, 1.9, 5.7, false),
+      );
+      add(Y(0.55, 1.2), M(0x1e6fd0), -13.2, 4.2, 5.8, false);
+      ring(-13.2, 2.2, 5.8, 0.62, RY);
+      ring(-13.2, 3.2, 5.8, 0.62, RY);
+      tag("High Pressure Pump", -13.2, 5.6, 5.8, 5);
+      // UV
+      ring(9.6, 2, 3, 1.05, RX, 0.14);
+      ring(16.4, 2, 3, 1.05, RX, 0.14);
+      [11, 15].forEach((x) => add(B(0.5, 0.7, 1.8), dark, x, 0.65, 3, false));
+      add(B(1, 0.9, 0.05), M(0x66ffcc, 1, 0.8), 17.8, 2.3, 3.73, false);
+      tag("UV Sterilizer", 13, 3.3, 3, 4);
+      // treated tank
+      [1.5, 3, 4.5, 6].forEach((y) => ring(22, y, 9, 4.03, RY));
+      [21.7, 22.3].forEach((x) =>
+        add(B(0.06, 7.2, 0.06), steel, x, 4, 13.1, false),
+      );
+      for (let i = 0; i < 14; i++)
+        add(B(0.6, 0.04, 0.04), steel, 22, 0.6 + i * 0.5, 13.1, false);
+      add(Y(0.3, 0.9), steel, 22, 9.6, 9, false);
+      add(Y(3.85, 5, 40), M(0x1d6fd6, 0.55, 0.6), 22, 3, 9, false);
+      tag("To Reuse / Distribution", 29, 2.4, 15.5, 6);
+      // control
+      [-19.65, -18.35].forEach((x) =>
+        add(B(1.2, 2.6, 0.05), M(0x9fb0c4, 1, 0.1), x, 1.8, 7.04, false),
+      );
+      [0xff5555, 0xffd24d, 0x55ff88].forEach((c, i) =>
+        add(
+          new THREE.SphereGeometry(0.07, 8, 8),
+          new THREE.MeshBasicMaterial({ color: c }),
+          -19.4 + i * 0.25,
+          2.9,
+          7.08,
+          false,
+        ),
+      );
+      add(B(0.8, 0.5, 0.05), M(0x66d9ff, 1, 0.8), -19, 2.2, 7.08, false);
+      for (let i = 0; i < 6; i++)
+        add(B(1.6, 0.05, 0.05), dark, -16.2, 0.7 + i * 0.25, 6.92, false);
+      [-17.2, -15.8].forEach((x) =>
+        add(
+          new THREE.SphereGeometry(0.6, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+          steel,
+          x,
+          2.5,
+          9,
+          false,
+        ),
+      );
+      // trees
+      [
+        [-27, -14],
+        [-26, 2],
+        [-27, 14],
+        [-6, -17],
+        [3, -17],
+        [22, -21],
+        [10, 16],
+        [14, 18],
+        [36, -6],
+        [37, 10],
+        [-14, 16],
+      ].forEach(([x, z]) => {
+        add(Y(0.18, 1), M(0x3b2f2a, 1, 0.05), x, 0.5, z, false);
+        for (let k = 0; k < 3; k++)
+          add(
+            new THREE.ConeGeometry(1.3 - k * 0.3, 1.6, 10),
+            M(0x1c6a7a, 1, 0.12),
+            x,
+            1.4 + k * 0.9,
+            z,
+            false,
+          );
+      });
+
+      // pipes + flow particles
+      const flows = [],
+        pm = M(0x9ccfff, 0.55, 0.5),
+        pr = 0.22;
+      function pipe(pts) {
+        const v = pts.map((p) => new THREE.Vector3(...p));
+        let cum = [0];
+        for (let i = 0; i < v.length - 1; i++) {
+          const a = v[i],
+            b = v[i + 1],
+            l = a.distanceTo(b);
+          cum.push(cum[i] + l);
+          const m = new THREE.Mesh(
+            new THREE.CylinderGeometry(pr, pr, l, 10),
+            pm,
+          );
+          m.position.copy(a).lerp(b, 0.5);
+          m.quaternion.setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            b.clone().sub(a).normalize(),
+          );
+          G.add(m);
+          const j = new THREE.Mesh(
+            new THREE.SphereGeometry(pr * 1.25, 10, 8),
+            pm,
+          );
+          j.position.copy(a);
+          G.add(j);
+        }
+        const n = Math.max(2, Math.round(cum[cum.length - 1] / 3));
+        for (let k = 0; k < n; k++) {
+          const s = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 8, 8),
+            new THREE.MeshBasicMaterial({ color: 0x7fe0ff }),
+          );
+          S.add(s);
+          flows.push({ s, v, cum, t: k / n });
+        }
+      }
+      const y = 1.2;
+      pipe([
+        [-19.3, y, -8],
+        [-17.5, y, -8],
+        [-14.5, y, -8],
+      ]);
+      pipe([
+        [-9, y, -8],
+        [-6.8, y, -8],
+      ]);
+      pipe([
+        [3.8, y, -8],
+        [5, y, -8],
+      ]);
+      pipe([
+        [11, y, -4],
+        [11, y, 0.8],
+        [3, y, 0.8],
+      ]);
+      pipe([
+        [16.5, 2.2, -9],
+        [19, 2.2, -9],
+        [19, 2.2, -13],
+        [20.3, 2.2, -14],
+      ]);
+      pipe([
+        [3, y, 0.8],
+        [3, y, 2.3],
+      ]);
+      pipe([
+        [0.5, y, 6],
+        [0.5, y, 7.8],
+        [-4.5, y, 7.8],
+      ]);
+      pipe([
+        [-13.8, y, 7.8],
+        [-13.8, y, 10.5],
+        [13, y, 10.5],
+        [13, y, 4.8],
+      ]);
+      pipe([
+        [16.8, y, 3],
+        [22, y, 3],
+        [22, y, 5],
+      ]);
+      pipe([
+        [22, y, 13],
+        [22, y, 15.5],
+        [31, y, 15.5],
+      ]);
+
+      // ===== stasiun cartridge filter 40" (spun, pleated, carbon) =====
+      const tex = (() => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 128;
+        const g = c.getContext("2d");
+        g.fillStyle = "#f4f6f8";
+        g.fillRect(0, 0, 128, 128);
+        g.strokeStyle = "rgba(120,130,140,.55)";
+        g.lineWidth = 2;
+        for (let i = -128; i < 256; i += 8) {
+          g.beginPath();
+          g.moveTo(i, 0);
+          g.lineTo(i + 128, 128);
+          g.stroke();
+        }
+        const t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(3, 16);
+        return t;
+      })();
+      const cartMat = [
+        new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 }),
+        M(0xdcebff, 1, 0.12),
+        new THREE.MeshStandardMaterial({
+          color: 0x2a2f36,
+          roughness: 0.6,
+          metalness: 0.3,
+        }),
+      ];
+      function cart(t, h, x, y, z, rot) {
+        const gr = new THREE.Group(),
+          g = Y(0.2, h, t == 1 ? 72 : 24);
+        if (t == 1) {
+          const p = g.attributes.position;
+          for (let i = 0; i < p.count; i++) {
+            const px = p.getX(i),
+              pz = p.getZ(i);
+            if (Math.hypot(px, pz) > 0.01) {
+              const k = 1 + 0.12 * Math.cos(Math.atan2(pz, px) * 18);
+              p.setX(i, px * k);
+              p.setZ(i, pz * k);
+            }
+          }
+          g.computeVertexNormals();
+        }
+        gr.add(new THREE.Mesh(g, cartMat[t]));
+        [h / 2, -h / 2].forEach((d) => {
+          const c = new THREE.Mesh(Y(0.22, 0.1, 24), M(0x7d8ea3, 1, 0.1));
+          c.position.y = d;
+          gr.add(c);
+        });
+        gr.position.set(x, y, z);
+        if (rot) gr.rotation.set(...rot);
+        G.add(gr);
+      }
+      function housing(x, z, t) {
+        const gl = t < 3,
+          bm = gl
+            ? M(0xcfe6ff, 0.2, 0.2)
+            : new THREE.MeshStandardMaterial({
+                color: 0xb8c4d4,
+                metalness: 0.7,
+                roughness: 0.35,
+              });
+        add(Y(0.85, 4.6, 32), bm, x, 3.2, z, gl);
+        add(
+          new THREE.CylinderGeometry(0.85, 0.3, 0.4, 24),
+          steel,
+          x,
+          0.7,
+          z,
+          false,
+        );
+        add(Y(0.95, 0.25, 32), steel, x, 5.62, z, false);
+        add(
+          new THREE.SphereGeometry(0.85, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+          steel,
+          x,
+          5.74,
+          z,
+          false,
+        );
+        ring(x, 5.5, z, 0.9, RY, 0.08, 0xb8c4d4);
+        for (let k = 0; k < 8; k++) {
+          const a = (k * Math.PI) / 4;
+          add(
+            Y(0.06, 0.32),
+            dark,
+            x + Math.cos(a) * 0.9,
+            5.62,
+            z + Math.sin(a) * 0.9,
+            false,
+          );
+        }
+        for (let k = 0; k < 3; k++) {
+          const a = k * 2.1;
+          add(
+            Y(0.07, 0.3),
+            dark,
+            x + Math.cos(a) * 0.55,
+            0.35,
+            z + Math.sin(a) * 0.55,
+            false,
+          );
+        }
+        [1.5, 4.8].forEach((y) =>
+          add(Y(0.18, 0.65, 12), steel, x, y, z + 1.175, false, [
+            Math.PI / 2,
+            0,
+            0,
+          ]),
+        );
+        add(Y(0.08, 0.4), steel, x, 6.1, z, false);
+        ring(x, 6.35, z, 0.15, RY, 0.03, 0xff6b6b);
+        add(Y(0.2, 0.08, 16), M(0xffffff, 1, 0.4), x, 4, z - 0.88, false, [
+          Math.PI / 2,
+          0,
+          0,
+        ]);
+        if (gl) {
+          cart(t, 4, x, 3.2, z);
+          for (let k = 0; k < 6; k++) {
+            const a = (k * Math.PI) / 3;
+            cart(t, 4, x + Math.cos(a) * 0.45, 3.2, z + Math.sin(a) * 0.45);
+          }
+        }
+      }
+      pad(0, 15, 17, 7);
+      [0, 1, 2, 3].forEach((t, i) => housing(-4.5 + i * 3, 14.5, t));
+      [1.5, 4.8].forEach((y) =>
+        add(Y(0.22, 13, 16), steel, 0, y, 16, false, [0, 0, Math.PI / 2]),
+      );
+      pipe([
+        [-6.5, 1.5, 16],
+        [-9, 1.5, 16],
+        [-9, 1.2, 10.5],
+      ]);
+      pipe([
+        [6.5, 4.8, 16],
+        [9, 4.8, 16],
+        [9, 1.2, 10.5],
+      ]);
+      add(B(16, 0.12, 1.2), dark, 0, 0.5, 17.5, false);
+      [-7.5, 7.5].forEach((x) =>
+        add(B(0.2, 0.2, 1), dark, x, 0.4, 17.5, false),
+      );
+      [
+        [0, -5.2],
+        [1, 0],
+        [2, 5.2],
+      ].forEach(([t, x]) =>
+        [17.25, 17.75].forEach((z) =>
+          cart(t, 4, x, 0.8, z, [0, 0, Math.PI / 2]),
+        ),
+      );
+
+      // orbit camera
+      const D = {
+        th: 0.75,
+        ph: 1.0,
+        r: embedMode ? Math.max(72, 98 / (W() / H())) : 62,
+        tx: embedMode ? 5 : 2,
+        ty: embedMode ? 5 : 2,
+        tz: embedMode ? -1.5 : 0,
+      };
+      C.filmOffset = embedMode ? (W() > 850 ? -10 : 1) : 0;
+      C.updateProjectionMatrix();
+      let pts = new Map(),
+        pd = 0;
+      function cam() {
+        C.position.set(
+          D.tx + D.r * Math.sin(D.ph) * Math.sin(D.th),
+          D.ty + D.r * Math.cos(D.ph),
+          D.tz + D.r * Math.sin(D.ph) * Math.cos(D.th),
+        );
+        C.lookAt(D.tx, D.ty, D.tz);
+      }
+      const cv = R.domElement;
+      cv.onpointerdown = (e) => {
+        cv.setPointerCapture(e.pointerId);
+        pts.set(e.pointerId, e);
+        if (pts.size == 2) {
+          const [a, b] = [...pts.values()];
+          pd = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+        }
+      };
+      cv.onpointermove = (e) => {
+        const p = pts.get(e.pointerId);
+        if (!p) return;
+        if (pts.size == 2) {
+          pts.set(e.pointerId, e);
+          const [a, b] = [...pts.values()],
+            d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+          D.r = Math.min(110, Math.max(18, (D.r * pd) / d));
+          pd = d;
+          return;
+        }
+        D.th -= (e.clientX - p.clientX) * 0.006;
+        D.ph = Math.min(
+          1.5,
+          Math.max(0.25, D.ph - (e.clientY - p.clientY) * 0.005),
+        );
+        pts.set(e.pointerId, e);
+      };
+      cv.onpointerup = cv.onpointercancel = (e) => pts.delete(e.pointerId);
+      cv.onwheel = (e) => {
+        e.preventDefault();
+        D.r = Math.min(110, Math.max(18, D.r * (1 + e.deltaY * 0.001)));
+      };
+      addEventListener("resize", () => {
+        R.setSize(W(), H());
+        C.aspect = W() / H();
+        C.updateProjectionMatrix();
+      });
+      C.aspect = W() / H();
+      C.updateProjectionMatrix();
+
+      const v3 = new THREE.Vector3();
+      let last = 0;
+      function loop(t) {
+        requestAnimationFrame(loop);
+        const dt = Math.min((t - last) / 1000, 0.05);
+        last = t;
+        if (!pts.size) D.th += dt * 0.06;
+        cam();
+        C.updateMatrixWorld();
+        bub.forEach((b) => {
+          b.position.y += dt * 0.5;
+          if (b.position.y > 2.4) b.position.y = 0.6;
+        });
+        scr.position.x = 11 + Math.sin(t * 0.0005) * 4.3;
+        for (const f of flows) {
+          f.t = (f.t + dt * 0.07) % 1;
+          const d = f.t * f.cum[f.cum.length - 1];
+          let i = 1;
+          while (i < f.cum.length - 1 && f.cum[i] < d) i++;
+          const a = f.v[i - 1],
+            b = f.v[i],
+            k = (d - f.cum[i - 1]) / (f.cum[i] - f.cum[i - 1]);
+          f.s.position.copy(a).lerp(b, k);
+        }
+        R.render(S, C);
+      }
+      requestAnimationFrame(loop);
+    </script>
+  </body>
+</html>

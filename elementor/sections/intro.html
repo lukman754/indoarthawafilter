@@ -1,0 +1,20 @@
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap");
+.af-intro, .af-intro * { box-sizing:border-box; }
+.af-intro { --af-blue:#087fa3; --af-muted:#5c6b70; --af-line:#d5dddf; display:grid; width:min(1240px,100%); grid-template-columns:1fr 1fr; gap:100px; margin:0 auto; padding:82px 32px; border-top:1px solid var(--af-line); color:#17252a; font:400 15px/1.5 Manrope,Arial,sans-serif; }
+.af-intro-eyebrow { margin:0 0 20px; color:var(--af-blue); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.af-intro h2 { margin:0; font-size:38px; line-height:1.15; font-weight:600; }
+.af-intro-copy > p { margin:0; color:var(--af-muted); font-size:15px; line-height:1.8; }
+.af-intro-meta { display:flex; gap:28px; margin-top:32px; }
+.af-intro-meta strong { display:block; color:var(--af-blue); font-size:24px; font-weight:600; }
+.af-intro-meta span { display:block; margin-top:5px; color:var(--af-muted); font-size:11px; }
+@media(max-width:850px) { .af-intro { grid-template-columns:1fr; gap:30px; padding:64px 32px; } }
+@media(max-width:560px) { .af-intro { padding:54px 18px; } .af-intro h2 { font-size:31px; } .af-intro-meta { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; } .af-intro-meta span { font-size:10px; } }
+</style>
+<section class="af-intro" id="af-about">
+  <div><div class="af-intro-eyebrow">Arthawa Filter</div><h2>Produk yang dipilih berdasarkan kebutuhan proses, bukan sekadar katalog.</h2></div>
+  <div class="af-intro-copy">
+    <p>Kami menyediakan produk dan komponen untuk sistem filtrasi air. Sampaikan tipe, ukuran, foto produk existing atau kebutuhan proses, lalu kami bantu mencocokkannya.</p>
+    <div class="af-intro-meta"><div><strong>01</strong><span>Cek spesifikasi</span></div><div><strong>02</strong><span>Pilih komponen</span></div><div><strong>03</strong><span>Dukungan project</span></div></div>
+  </div>
+</section>

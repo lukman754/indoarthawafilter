@@ -1,0 +1,44 @@
+.system {
+  background: var(--dark);
+  color: white;
+  border-radius: 5px;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 43% 57%;
+  min-height: 470px;
+}
+.system-copy {
+  padding: 64px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.system-copy h2 {
+  font-size: 40px;
+  line-height: 1.1;
+  letter-spacing: 0;
+  font-weight: 600;
+  margin: 0 0 20px;
+}
+.system-copy .eyebrow {
+  color: var(--signal);
+}
+.system-copy p {
+  color: #c2ccce;
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 0;
+}
+.system-link {
+  margin-top: 25px;
+  color: var(--signal);
+  font-size: 13px;
+  font-weight: 600;
+}
+.system-image {
+  min-height: 470px;
+  background: #26383d;
+}
+.system-image img {
+  filter: saturate(0.72);
+}
