@@ -1010,7 +1010,7 @@
       const HT = 7.5;
       function upd(dt) {
         if (!tr) {
-          if ((idle += dt) > 7) {
+          if ((idle += dt) > 5) {
             const next = (ci + 1) % cols.length;
             tr = { from: ci, to: next, t: 0 };
             ci = next;
@@ -1060,10 +1060,7 @@
         D = { th: 0.35, ph: 1.2, r: 14, rt: 14 };
       let focus = null;
       const fitScale = () => Math.max(1, Math.min(2.4, 1 / C.aspect));
-      const setDefaultTarget = () => {
-        tgt.copy(T0);
-        if (C.aspect > 1.3) tgt.x -= 1.2;
-      };
+      const setDefaultTarget = () => tgt.copy(T0);
       T0.copy(cols[0].t0);
       setDefaultTarget();
       cur.copy(T0);

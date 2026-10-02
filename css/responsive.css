@@ -32,6 +32,7 @@
   }
   .hero-3d {
     position: relative;
+    inset: auto;
     top: auto;
     right: auto;
     z-index: 0;
